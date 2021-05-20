@@ -1,11 +1,11 @@
 /*
- * Arc Menu - A traditional application menu for GNOME 3
+ * ArcMenu - A traditional application menu for GNOME 3
  *
- * Arc Menu Lead Developer
+ * ArcMenu Lead Developer and Maintainer
  * Andrew Zaech https://gitlab.com/AndrewZaech
  * 
- * Arc Menu Founder/Maintainer/Graphic Designer
- * LinxGem33 https://gitlab.com/LinxGem33
+ * ArcMenu Founder, Former Maintainer, and Former Graphic Designer
+ * LinxGem33 https://gitlab.com/LinxGem33 - (No Longer Active)
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,11 +36,17 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
     constructor(mainButton) {
         super(mainButton, {
             Search: true,
-            SearchType: Constants.SearchType.LIST_VIEW,
+            AppType: Constants.AppDisplayType.LIST,
+            SearchType: Constants.AppDisplayType.LIST,
+            GridColumns: 1,
+            ColumnSpacing: 0,
+            RowSpacing: 0,
+            SupportsCategoryOnHover: true,
             VerticalMainBox: true
         });
     }
     createLayout(){
+        super.createLayout();
         this.searchBox = new MW.SearchBox(this);
         this._searchBoxChangedId = this.searchBox.connect('changed', this._onSearchBoxChanged.bind(this));
         this._searchBoxKeyPressId = this.searchBox.connect('key-press-event', this._onSearchBoxKeyPress.bind(this));
@@ -125,7 +131,7 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
             y_align: Clutter.ActorAlign.END,
             x_align: Clutter.ActorAlign.CENTER
         });	
-        this.sessionBox.style = "spacing: 16px;";
+        this.sessionBox.style = "spacing: 6px;";
 
         if(this._settings.get_boolean('show-logout-button')){
             let logout = new MW.LogoutButton( this);
@@ -139,6 +145,10 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
             let suspend = new MW.SuspendButton( this);
             this.sessionBox.add(suspend.actor);
         }
+        if(this._settings.get_boolean('show-restart-button')){
+            let restart = new MW.RestartButton(this);
+            this.sessionBox.add(restart.actor);
+        }
         if(this._settings.get_boolean('show-power-button')){
             let power = new MW.PowerButton( this);
             this.sessionBox.add(power.actor);
@@ -150,94 +160,38 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
             this.mainBox.add(this.searchBox.actor); 
         }
 
-        this.loadFavorites();
+        this.loadPinnedApps();
         this.loadCategories();
-        this.loadPinnedShortcuts();
+        this.loadExtraPinnedApps();
         this.displayCategories();
         this.setDefaultMenuView();
     }
 
     updateStyle(){
-        let addStyle = this._settings.get_boolean('enable-custom-arc-menu');
+        let customStyle = this._settings.get_boolean('enable-custom-arc-menu');
         if(this.sessionBox){
             this.sessionBox.get_children().forEach((actor) => {
                 if(actor instanceof St.Button){
-                    addStyle ? actor.add_style_class_name('arc-menu-action') : actor.remove_style_class_name('arc-menu-action');
+                    customStyle ? actor.add_style_class_name('arc-menu-action') : actor.remove_style_class_name('arc-menu-action');
                 }
             });
         }
         super.updateStyle();
     }
 
-    loadPinnedShortcuts(){
+    loadExtraPinnedApps(){
         this.actionsBox.destroy_all_children();
-        this.actionsBox.add(this._createHorizontalSeparator(Constants.SEPARATOR_STYLE.LONG));
+        this.actionsBox.add(this._createHorizontalSeparator(Constants.SeparatorStyle.LONG));
         let pinnedApps = this._settings.get_strv('brisk-shortcuts-list');
-        this.favoritesArray=null;
-        this.favoritesArray=[];
 
-        for(let i = 0;i<pinnedApps.length;i+=3){
-            let app = Shell.AppSystem.get_default().lookup_app(pinnedApps[i+2]);
-            
-            let placeInfo, placeMenuItem;
-            if(pinnedApps[i+2]=="ArcMenu_Home"){
-                let homePath = GLib.get_home_dir();
-                placeInfo = new MW.PlaceInfo(Gio.File.new_for_path(homePath), _("Home"));
-                placeMenuItem = new MW.PlaceMenuItem(this, placeInfo);
-            }
-            else if(pinnedApps[i+2]=="ArcMenu_Computer"){
-                placeInfo = new PlaceDisplay.RootInfo();
-                placeInfo.icon = placeInfo.icon.to_string();
-                placeMenuItem = new MW.PlaceMenuItem(this, placeInfo);
-            }
-            else if(pinnedApps[i+2]=="ArcMenu_Network"){
-                placeInfo = new PlaceDisplay.PlaceInfo('network',Gio.File.new_for_uri('network:///'), _('Network'),'network-workgroup-symbolic');
-                placeInfo.icon = placeInfo.icon.to_string();
-                placeMenuItem = new MW.PlaceMenuItem(this, placeInfo);    
-            }
-            else if(pinnedApps[i+2] == "ArcMenu_Software"){
-                let software = Utils.findSoftwareManager();
-                if(software)
-                    placeMenuItem = new MW.ShortcutMenuItem(this, _("Software"), 'system-software-install-symbolic', software);
-            }
-            else if(pinnedApps[i+2] == Constants.ArcMenu_SettingsCommand || pinnedApps[i+2] == "ArcMenu_Suspend" || pinnedApps[i+2] == "ArcMenu_LogOut" || pinnedApps[i+2] == "ArcMenu_PowerOff"
-                    || pinnedApps[i+2] == "ArcMenu_Lock" || app){
-                placeMenuItem = new MW.ShortcutMenuItem(this, pinnedApps[i], pinnedApps[i+1], pinnedApps[i+2]);
-            }
-            else if(pinnedApps[i+2] === "ArcMenu_Trash"){
-                placeMenuItem = new MW.ShortcutMenuItem(this, _("Trash"), '', "ArcMenu_Trash");
-            }
-            else if(pinnedApps[i+2].startsWith("ArcMenu_")){
-                let path = pinnedApps[i+2].replace("ArcMenu_",'');
-
-                if(path === "Documents")
-                    path = imports.gi.GLib.UserDirectory.DIRECTORY_DOCUMENTS;
-                else if(path === "Downloads")
-                    path = imports.gi.GLib.UserDirectory.DIRECTORY_DOWNLOAD;
-                else if(path === "Music")
-                    path = imports.gi.GLib.UserDirectory.DIRECTORY_MUSIC;
-                else if(path === "Pictures")
-                    path = imports.gi.GLib.UserDirectory.DIRECTORY_PICTURES;
-                else if(path === "Videos")
-                    path = imports.gi.GLib.UserDirectory.DIRECTORY_VIDEOS;
-
-                path = GLib.get_user_special_dir(path);
-                if (path != null){
-                    placeInfo = new MW.PlaceInfo(Gio.File.new_for_path(path), _(pinnedApps[i]));
-                    placeMenuItem = new MW.PlaceMenuItem(this, placeInfo);
-                }
-            }
-            else{
-                let path = pinnedApps[i+2];
-                placeInfo = new MW.PlaceInfo(Gio.File.new_for_path(path), _(pinnedApps[i]), (pinnedApps[i+1] !== "ArcMenu_Folder") ? pinnedApps[i+1] : null);
-                placeMenuItem = new MW.PlaceMenuItem(this, placeInfo);
-            }   
+        for(let i = 0;i < pinnedApps.length; i += 3){
+            let placeMenuItem = this.createMenuItem([pinnedApps[i],pinnedApps[i+1], pinnedApps[i+2]], Constants.MenuItemType.MENU_ITEM);     
             if(placeMenuItem){
                 placeMenuItem.setIconSizeLarge();
                 this.actionsBox.add(placeMenuItem.actor);
             }
         }
-        this.actionsBox.add(this._createHorizontalSeparator(Constants.SEPARATOR_STYLE.LONG));  
+        this.actionsBox.add(this._createHorizontalSeparator(Constants.SeparatorStyle.LONG));  
     }
 
     setDefaultMenuView(){

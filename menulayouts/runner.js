@@ -1,11 +1,11 @@
 /*
- * Arc Menu - A traditional application menu for GNOME 3
+ * ArcMenu - A traditional application menu for GNOME 3
  *
- * Arc Menu Lead Developer
+ * ArcMenu Lead Developer and Maintainer
  * Andrew Zaech https://gitlab.com/AndrewZaech
  * 
- * Arc Menu Founder/Maintainer/Graphic Designer
- * LinxGem33 https://gitlab.com/LinxGem33
+ * ArcMenu Founder, Former Maintainer, and Former Graphic Designer
+ * LinxGem33 https://gitlab.com/LinxGem33 - (No Longer Active)
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,12 +38,17 @@ var createMenu =  class extends BaseMenuLayout.BaseLayout{
     constructor(mainButton) {
         super(mainButton,{
             Search: true,
-            SearchType: Constants.SearchType.LIST_VIEW,
+            AppType: Constants.AppDisplayType.LIST,
+            SearchType: Constants.AppDisplayType.LIST,
+            GridColumns: 1,
+            ColumnSpacing: 0,
+            RowSpacing: 0,
             VerticalMainBox: true
         });
     }
 
     createLayout(){
+        super.createLayout();
         this.mainBox.style = `max-height: 400px;`;       
 
         this.dummyCursor = new St.Widget({ width: 0, height: 0, opacity: 0 });
@@ -55,7 +60,7 @@ var createMenu =  class extends BaseMenuLayout.BaseLayout{
         this.oldFocusActor = this.arcMenu.focusActor;
         this.oldArrowAlignment = this.arcMenu.actor._arrowAlignment;
 
-        this.arcMenu.actor.style = "-arrow-base:0px;-arrow-rise:0px;";
+        this.arcMenu.actor.style = "-arrow-base:0px; -arrow-rise:0px;";
         this.arcMenu.sourceActor = this.dummyCursor;
         this.arcMenu.focusActor = this.dummyCursor;
         this.arcMenu._boxPointer.setPosition(this.dummyCursor, 0.5);
@@ -67,23 +72,15 @@ var createMenu =  class extends BaseMenuLayout.BaseLayout{
             y_expand: true,
             vertical: false
         });
-        this.topBox.style = "width: " + RUNNER_WIDTH + "px; padding-bottom: 0.5em";
+        this.topBox.style = "width: " + RUNNER_WIDTH + "px;";
 
         this.searchBox = new MW.SearchBox(this);
-        this.searchBox.actor.style = "padding-top: 0.5em; padding-bottom: 0.5em;padding-left: 1em;padding-right: 1em;";
+        this.searchBox.actor.style = "padding-top: 0.5em; padding-bottom: 0.5em;padding-left: 1.5em;padding-right: 1.5em;";
         this._searchBoxChangedId = this.searchBox.connect('changed', this._onSearchBoxChanged.bind(this));
         this._searchBoxKeyPressId = this.searchBox.connect('key-press-event', this._onSearchBoxKeyPress.bind(this));
         this._searchBoxKeyFocusInId = this.searchBox.connect('key-focus-in', this._onSearchBoxKeyFocusIn.bind(this));
         this.topBox.add(this.searchBox.actor);
         this.mainBox.add(this.topBox);
-
-        this.arcMenuSettingsButton = new MW.ArcMenuSettingsButton(this);
-        this.arcMenuSettingsButton.actor.x_expand = false;
-        this.arcMenuSettingsButton.actor.y_expand = false;
-        this.arcMenuSettingsButton.actor.y_align = Clutter.ActorAlign.CENTER;
-        this.arcMenuSettingsButton.actor.x_align = Clutter.ActorAlign.CENTER;
-        this.arcMenuSettingsButton.actor.style = "margin-right: 1em; padding: 8px;";
-        this.topBox.add(this.arcMenuSettingsButton.actor);
 
         this.applicationsScrollBox = this._createScrollBox({
             x_expand: true,
@@ -91,9 +88,9 @@ var createMenu =  class extends BaseMenuLayout.BaseLayout{
             y_align: Clutter.ActorAlign.START,
             x_align: Clutter.ActorAlign.START,
             overlay_scrollbars: true,
-            style_class: 'apps-menu vfade',
+            style_class: 'apps-menu small-vfade',
             reactive:true
-        });      
+        });
         this.applicationsScrollBox.style = "width: " + RUNNER_WIDTH + "px";
 
         this.mainBox.add(this.applicationsScrollBox);
@@ -102,11 +99,11 @@ var createMenu =  class extends BaseMenuLayout.BaseLayout{
     }
     
     updateLocation(){
-        this.arcMenu.actor.style = "-arrow-base:0px;-arrow-rise:0px;";
+        this.arcMenu.actor.style = "-arrow-base:0px; -arrow-rise:0px;";
         this.arcMenu._boxPointer.setSourceAlignment(0.5);
-        this.arcMenu._arrowAlignment = 0.5
+        this.arcMenu._arrowAlignment = 0.5;
         
-        let monitorIndex = Main.layoutManager.findIndexForActor(this.menuButton.menuButtonWidget.actor);
+        let monitorIndex = Main.layoutManager.findIndexForActor(this.menuButton);
         let rect = Main.layoutManager.getWorkAreaForMonitor(monitorIndex);
 
         //Position the runner menu in the center of the current monitor, at top of screen.
@@ -119,18 +116,16 @@ var createMenu =  class extends BaseMenuLayout.BaseLayout{
     }
     
     updateIcons(){
-        this.newSearch._reset();
+        this.searchResults._reset();
     }
 
     updateStyle(){
         super.updateStyle();
-        let addStyle=this._settings.get_boolean('enable-custom-arc-menu');
-        addStyle ? this.arcMenuSettingsButton.actor.add_style_class_name('arc-menu-action') : this.arcMenuSettingsButton.actor.remove_style_class_name('arc-menu-action');
-        this.arcMenu.actor.style = "-arrow-base:0px;-arrow-rise:0px;";
+        this.arcMenu.actor.style = "-arrow-base:0px; -arrow-rise:0px;";
     }
 
     updateSearch(){
-        this.newSearch._reloadRemoteProviders();
+        this.searchResults._reloadRemoteProviders();
     }
 
     loadCategories(){

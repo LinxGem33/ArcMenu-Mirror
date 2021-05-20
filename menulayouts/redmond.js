@@ -1,11 +1,11 @@
 /*
- * Arc Menu - A traditional application menu for GNOME 3
+ * ArcMenu - A traditional application menu for GNOME 3
  *
- * Arc Menu Lead Developer
+ * ArcMenu Lead Developer and Maintainer
  * Andrew Zaech https://gitlab.com/AndrewZaech
  * 
- * Arc Menu Founder/Maintainer/Graphic Designer
- * LinxGem33 https://gitlab.com/LinxGem33
+ * ArcMenu Founder, Former Maintainer, and Former Graphic Designer
+ * LinxGem33 https://gitlab.com/LinxGem33 - (No Longer Active)
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,19 +33,22 @@ const PopupMenu = imports.ui.popupMenu;
 const Utils =  Me.imports.utils;
 const _ = Gettext.gettext;
 
-const COLUMN_SPACING = 10;
-const ROW_SPACING = 10;
-const COLUMN_COUNT = 4;
-
 var createMenu = class extends BaseMenuLayout.BaseLayout{
     constructor(mainButton) {
         super(mainButton,{
             Search: true,
-            SearchType: Constants.SearchType.GRID_VIEW,
+            AppType: Constants.AppDisplayType.GRID,
+            SearchType: Constants.AppDisplayType.GRID,
+            GridColumns: 4,
+            ColumnSpacing: 10,
+            RowSpacing: 10,
+            IconGridSize: 36,
+            IconGridStyle: 'SmallIconGrid',
             VerticalMainBox: false
         });
     }
     createLayout(){
+        super.createLayout();
         this.searchBox = new MW.SearchBox(this);
         this.searchBox._stEntry.style = "min-height: 0px; border-radius: 18px; padding: 7px 12px;";
         this.searchBox.actor.style ="margin: 0px 10px 10px 10px; padding-top: 0.0em; padding-bottom: 0.5em;padding-left: 0.4em;padding-right: 0.4em;";
@@ -66,17 +69,6 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
             vertical: true
         });
 
-        let layout = new Clutter.GridLayout({ 
-            orientation: Clutter.Orientation.VERTICAL,
-            column_spacing: COLUMN_SPACING,
-            row_spacing: ROW_SPACING 
-        });
-        this.grid = new St.Widget({ 
-            x_expand: true,
-            x_align: Clutter.ActorAlign.CENTER,
-            layout_manager: layout 
-        });
-        layout.hookup_style(this.grid);
 
         this.applicationsScrollBox = this._createScrollBox({
             x_expand: true,
@@ -112,7 +104,7 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         if(!this._settings.get_boolean('disable-user-avatar')){
             this.user = new MW.UserMenuItem(this);
             this.rightBox.add(this.user.actor);
-            this.rightBox.add(this._createHorizontalSeparator(Constants.SEPARATOR_STYLE.SHORT));
+            this.rightBox.add(this._createHorizontalSeparator(Constants.SeparatorStyle.SHORT));
         }
         
         this.shortcutsBox = new St.BoxLayout({
@@ -144,7 +136,7 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         if(this.placesShortcuts && (this._settings.get_boolean('show-external-devices') || this.softwareShortcuts || this._settings.get_boolean('show-bookmarks'))  )
             shouldDraw=true;  
         if(shouldDraw){
-            this.shortcutsBox.add(this._createHorizontalSeparator(Constants.SEPARATOR_STYLE.SHORT));
+            this.shortcutsBox.add(this._createHorizontalSeparator(Constants.SeparatorStyle.SHORT));
         }
 
         //External Devices and Bookmarks Shortcuts
@@ -171,29 +163,34 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         }
 
         //Add Application Shortcuts to menu (Software, Settings, Tweaks, Terminal)
-        let SOFTWARE_TRANSLATIONS = [_("Software"), _("Settings"), _("Tweaks"), _("Terminal"), _("Activities Overview"), _("Arc Menu Settings")];
+        let SOFTWARE_TRANSLATIONS = [_("Software"), _("Settings"), _("Tweaks"), _("Terminal"), _("Activities Overview"), _("ArcMenu Settings")];
         let applicationShortcuts = this._settings.get_value('application-shortcuts-list').deep_unpack();
         for(let i = 0; i < applicationShortcuts.length; i++){
             let applicationName = applicationShortcuts[i][0];
-            let shortcutMenuItem = new MW.ShortcutMenuItem(this, _(applicationName), applicationShortcuts[i][1], applicationShortcuts[i][2]);
+            let shortcutMenuItem = new MW.ShortcutMenuItem(this, _(applicationName), applicationShortcuts[i][1], applicationShortcuts[i][2], Constants.AppDisplayType.LIST);
             if(shortcutMenuItem.shouldShow)
                 this.shortcutsBox.add(shortcutMenuItem.actor);
         }
         this.actionsScrollBox = new St.ScrollView({
             x_expand: true,
             y_expand: true,
-            y_align: Clutter.ActorAlign.END,
             x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.END,
+            hscrollbar_policy: St.PolicyType.AUTOMATIC,
+            vscrollbar_policy: St.PolicyType.AUTOMATIC,
+            clip_to_allocation: true,
+            overlay_scrollbars: true,
+            style_class: 'hfade'
         });
-        this.actionsScrollBox.set_policy(Gtk.PolicyType.EXTERNAL, Gtk.PolicyType.NEVER);
-        this.actionsScrollBox.clip_to_allocation = true;
 
         //create new section for Power, Lock, Logout, Suspend Buttons
         this.actionsBox = new St.BoxLayout({
             vertical: false,
+            x_expand: true,
             x_align: Clutter.ActorAlign.CENTER,
+            style: "spacing: 6px;"
         });	
-        this.actionsBox.style = "spacing: 16px;";
+
         this.actionsScrollBox.add_actor(this.actionsBox);  
 
         if(this._settings.get_boolean('show-logout-button')){
@@ -208,6 +205,10 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
             let suspend = new MW.SuspendButton(this);
             this.actionsBox.add(suspend.actor);
         }
+        if(this._settings.get_boolean('show-restart-button')){
+            let restart = new MW.RestartButton(this);
+            this.actionsBox.add(restart.actor);
+        }      
         if(this._settings.get_boolean('show-power-button')){
             let power = new MW.PowerButton(this);
             this.actionsBox.add(power.actor);
@@ -224,32 +225,17 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         this.mainBox.add(horizonalFlip ? this.subMainBox: this.rightBox);  
 
         this.loadCategories();
-        this.displayAllApps();
         this.setDefaultMenuView();
     }
 
     setDefaultMenuView(){
         super.setDefaultMenuView();
-        this._displayAppIcons();
+        this.displayAllApps();
     }
 
     loadCategories() {
         this.categoryDirectories = null;
         this.categoryDirectories = new Map(); 
-
-        let isIconGrid = true;
-        super.loadCategories(MW.CategoryMenuItem, isIconGrid);
-    }
-    
-    _displayAppList(apps) {
-        super._displayAppGridList(apps, COLUMN_COUNT);
-    }
-
-    _displayAppIcons(){
-        this.activeMenuItem = this.grid.layout_manager.get_child_at(0, 0);
-        this.applicationsBox.add(this.grid);
-        if(this.arcMenu.isOpen){
-            this.mainBox.grab_key_focus();
-        }
+        super.loadCategories();
     }
 }

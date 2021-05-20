@@ -1,11 +1,11 @@
 /*
- * Arc Menu - A traditional application menu for GNOME 3
+ * ArcMenu - A traditional application menu for GNOME 3
  *
- * Arc Menu Lead Developer
+ * ArcMenu Lead Developer and Maintainer
  * Andrew Zaech https://gitlab.com/AndrewZaech
  * 
- * Arc Menu Founder/Maintainer/Graphic Designer
- * LinxGem33 https://gitlab.com/LinxGem33
+ * ArcMenu Founder, Former Maintainer, and Former Graphic Designer
+ * LinxGem33 https://gitlab.com/LinxGem33 - (No Longer Active)
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,12 +37,17 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
     constructor(mainButton) {
         super(mainButton,{
             Search: true,
-            SearchType: Constants.SearchType.LIST_VIEW,
+            AppType: Constants.AppDisplayType.LIST,
+            SearchType: Constants.AppDisplayType.LIST,
+            GridColumns: 1,
+            ColumnSpacing: 0,
+            RowSpacing: 0,
             VerticalMainBox: true
         });
     }
 
     createLayout(){
+        super.createLayout();
         this.searchBox = new MW.SearchBox(this);
         this._searchBoxChangedId = this.searchBox.connect('changed', this._onSearchBoxChanged.bind(this));
         this._searchBoxKeyPressId = this.searchBox.connect('key-press-event', this._onSearchBoxKeyPress.bind(this));
@@ -52,6 +57,15 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
             this.mainBox.add(this.searchBox.actor);
         }
             
+        this.buttonPressEventID = global.stage.connect("button-press-event", () => {
+            if(this.arcMenu.isOpen && this.backButton.visible){
+                let event = Clutter.get_current_event();
+                if(event.get_button() === 8){
+                    this.backButton.activate(event);
+                }
+            }
+        });
+
         //subMainBox stores left and right box
         this.subMainBox = new St.BoxLayout({
             vertical: false,
@@ -88,7 +102,7 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
             y_expand: true,
             y_align: Clutter.ActorAlign.END
         });
-        this.navigateBox.add(this._createHorizontalSeparator(Constants.SEPARATOR_STYLE.LONG));
+        this.navigateBox.add(this._createHorizontalSeparator(Constants.SeparatorStyle.LONG));
         
         this.backButton = new MW.BackMenuItem(this);
         this.navigateBox.add(this.backButton.actor);
@@ -120,7 +134,7 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         if(!this._settings.get_boolean('disable-user-avatar')){
             this.user = new MW.UserMenuItem(this);
             this.rightBox.add(this.user.actor);
-            this.rightBox.add(this._createHorizontalSeparator(Constants.SEPARATOR_STYLE.SHORT));
+            this.rightBox.add(this._createHorizontalSeparator(Constants.SeparatorStyle.SHORT));
         }
 
         this.shortcutsBox = new St.BoxLayout({
@@ -152,7 +166,7 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         if(this.placesShortcuts && (this._settings.get_boolean('show-external-devices') || this.softwareShortcuts || this._settings.get_boolean('show-bookmarks'))  )
             shouldDraw=true;  
         if(shouldDraw){
-            this.shortcutsBox.add(this._createHorizontalSeparator(Constants.SEPARATOR_STYLE.SHORT));
+            this.shortcutsBox.add(this._createHorizontalSeparator(Constants.SeparatorStyle.SHORT));
         }
 
         //External Devices and Bookmarks Shortcuts
@@ -179,29 +193,33 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         }
 
         //Add Application Shortcuts to menu (Software, Settings, Tweaks, Terminal)
-        let SOFTWARE_TRANSLATIONS = [_("Software"), _("Settings"), _("Tweaks"), _("Terminal"), _("Activities Overview"), _("Arc Menu Settings")];
+        let SOFTWARE_TRANSLATIONS = [_("Software"), _("Settings"), _("Tweaks"), _("Terminal"), _("Activities Overview"), _("ArcMenu Settings")];
         let applicationShortcuts = this._settings.get_value('application-shortcuts-list').deep_unpack();
         for(let i = 0; i < applicationShortcuts.length; i++){
             let applicationName = applicationShortcuts[i][0];
-            let shortcutMenuItem = new MW.ShortcutMenuItem(this, _(applicationName), applicationShortcuts[i][1], applicationShortcuts[i][2]);
+            let shortcutMenuItem = new MW.ShortcutMenuItem(this, _(applicationName), applicationShortcuts[i][1], applicationShortcuts[i][2], Constants.AppDisplayType.LIST);
             if(shortcutMenuItem.shouldShow)
                 this.shortcutsBox.add(shortcutMenuItem.actor);
         }
         this.actionsScrollBox = new St.ScrollView({
             x_expand: true,
             y_expand: true,
+            x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.END,
-            x_align: Clutter.ActorAlign.CENTER
+            hscrollbar_policy: St.PolicyType.AUTOMATIC,
+            vscrollbar_policy: St.PolicyType.AUTOMATIC,
+            clip_to_allocation: true,
+            overlay_scrollbars: true,
+            style_class: 'hfade'
         });
-        this.actionsScrollBox.set_policy(Gtk.PolicyType.EXTERNAL, Gtk.PolicyType.NEVER);
-        this.actionsScrollBox.clip_to_allocation = true;
 
         //create new section for Power, Lock, Logout, Suspend Buttons
         this.actionsBox = new St.BoxLayout({
             vertical: false,
+            x_expand: true,
             x_align: Clutter.ActorAlign.CENTER,
+            style: "spacing: 6px;"
         });	
-        this.actionsBox.style = "spacing: 16px;";
         this.actionsScrollBox.add_actor(this.actionsBox);  
 
         if(this._settings.get_boolean('show-logout-button')){
@@ -216,6 +234,10 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
             let suspend = new MW.SuspendButton(this);
             this.actionsBox.add(suspend.actor);
         }
+        if(this._settings.get_boolean('show-restart-button')){
+            let restart = new MW.RestartButton(this);
+            this.actionsBox.add(restart.actor);
+        }      
         if(this._settings.get_boolean('show-power-button')){
             let power = new MW.PowerButton(this);
             this.actionsBox.add(power.actor);
@@ -226,7 +248,7 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         this.rightBox.style = "width: " + rightPanelWidth + "px;";
         this.shortcutsScrollBox.style = "width: " + rightPanelWidth + "px;";
         
-        this.loadFavorites();
+        this.loadPinnedApps();
         this.loadCategories();
         this.setDefaultMenuView(); 
     }
@@ -237,6 +259,8 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
 
         let extraCategories = this._settings.get_value("extra-categories").deep_unpack();
         let defaultMenuView = this._settings.get_enum('default-menu-view');
+        if(defaultMenuView === Constants.DefaultMenuView.PINNED_APPS)
+            this.hasPinnedApps = true;
 
         for(let i = 0; i < extraCategories.length; i++){
             let categoryEnum = extraCategories[i][0];
@@ -256,7 +280,7 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         super.loadCategories();
     }
 
-    displayFavorites(){
+    displayPinnedApps(){
         this.activeCategoryType = Constants.CategoryType.PINNED_APPS;
         let defaultMenuView = this._settings.get_enum('default-menu-view');
         if(defaultMenuView === Constants.DefaultMenuView.PINNED_APPS){
@@ -271,7 +295,7 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
             this.viewProgramsButton.actor.show();
             this.backButton.actor.hide();
         }
-        super.displayFavorites();
+        super.displayPinnedApps();
     }
 
     displayAllApps(){
@@ -299,7 +323,7 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         super.setDefaultMenuView();
         let defaultMenuView = this._settings.get_enum('default-menu-view');
         if(defaultMenuView === Constants.DefaultMenuView.PINNED_APPS)
-            this.displayFavorites();
+            this.displayPinnedApps();
         else if(defaultMenuView === Constants.DefaultMenuView.CATEGORIES_LIST)
             this.displayCategories();
         else if(defaultMenuView === Constants.DefaultMenuView.FREQUENT_APPS)
@@ -353,5 +377,13 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
             this.viewProgramsButton.actor.hide(); 
             this.activeCategoryType = Constants.CategoryType.SEARCH_RESULTS;   
         }            
+    }
+
+    destroy(isReload){
+        if(this.buttonPressEventID){
+            global.stage.disconnect(this.buttonPressEventID);
+            this.buttonPressEventID = null;
+        }
+        super.destroy(isReload)
     }
 }

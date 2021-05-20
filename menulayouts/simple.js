@@ -1,11 +1,11 @@
 /*
- * Arc Menu - A traditional application menu for GNOME 3
+ * ArcMenu - A traditional application menu for GNOME 3
  *
- * Arc Menu Lead Developer
+ * ArcMenu Lead Developer and Maintainer
  * Andrew Zaech https://gitlab.com/AndrewZaech
  * 
- * Arc Menu Founder/Maintainer/Graphic Designer
- * LinxGem33 https://gitlab.com/LinxGem33
+ * ArcMenu Founder, Former Maintainer, and Former Graphic Designer
+ * LinxGem33 https://gitlab.com/LinxGem33 - (No Longer Active)
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@
 
 const Me = imports.misc.extensionUtils.getCurrentExtension();
 
-const {GMenu, St} = imports.gi;
+const {Clutter, GMenu, St} = imports.gi;
 const AppFavorites = imports.ui.appFavorites;
 const BaseMenuLayout = Me.imports.menulayouts.baseMenuLayout;
 const Constants = Me.imports.constants;
@@ -36,11 +36,16 @@ var createMenu =  class extends BaseMenuLayout.BaseLayout{
     constructor(mainButton) {
         super(mainButton, {
             Search: false,
-            SearchType: null,
+            AppType: Constants.AppDisplayType.LIST,
+            SearchType: Constants.AppDisplayType.LIST,
+            GridColumns: 1,
+            ColumnSpacing: 0,
+            RowSpacing: 0,
             VerticalMainBox: true
         });
     }
     createLayout(){
+        super.createLayout();
         this.mainBox.style = null;
         this.section = this.menuButton.section;
         let actors = this.section.actor.get_children();
@@ -50,7 +55,7 @@ var createMenu =  class extends BaseMenuLayout.BaseLayout{
         }
         this.section.actor.add_actor(this.mainBox);  
 
-        this.loadFavorites();
+        this.loadPinnedApps();
         this.loadCategories();
         this._display(); 
     }
@@ -92,89 +97,57 @@ var createMenu =  class extends BaseMenuLayout.BaseLayout{
         super.displayCategories(this.mainBox);
     }
 
-    displayFavorites() {
+    displayPinnedApps() {
+        this._clearActorsFromBox();
         let categoryMenuItem = this.categoryDirectories.get(Constants.CategoryType.PINNED_APPS);
         if(categoryMenuItem){
-            let children = categoryMenuItem.applicationsBox.get_children();
-            for (let i = 0; i < children.length; i++) {
-                let actor = children[i];
-                if(actor._delegate instanceof MW.CategorySubMenuItem)
-                    actor._delegate.menu.close();
-                categoryMenuItem.applicationsBox.remove_actor(actor);
-            }
-            for(let i = 0;i < this.favoritesArray.length; i++){
-                categoryMenuItem.applicationsBox.add_actor(this.favoritesArray[i].actor);	
-                if(!this.favoritesArray[i].shouldShow)
-                    this.favoritesArray[i].actor.hide();
-                if(i==0){
-                    this.activeMenuItem = this.favoritesArray[i];
-                    if(this.arcMenu.isOpen){
-                        this.mainBox.grab_key_focus();
-                    }
-                }	   
-            }
-        } 
+            this._displayAppList(this.pinnedAppsArray, Constants.CategoryType.PINNED_APPS, categoryMenuItem);
+        }
     }
 
     _clearActorsFromBox(box) {
-        
-    }
+        let parent = this.applicationsGrid.get_parent();
+        if(!parent)
+            return;
+        let scrollViewParent = parent.get_parent();
 
-    displayCategoryAppList(appList, categoryMenuItem, category){
-        this._displayAppList(appList, categoryMenuItem, category);
-    }
-
-    _displayAppList(apps, categoryMenuItem, displayAllApps) {
-        let currentCharacter;
-        let needsNewSeparator = false; 
-        let listByCharacter = this._settings.get_boolean("alphabetize-all-programs");
-        if (apps) {
-            let children = categoryMenuItem.applicationsBox.get_children();
-            for (let i = 0; i < children.length; i++) {
-                let actor = children[i];
-                if(actor._delegate instanceof MW.CategorySubMenuItem)
-                    actor._delegate.menu.close();
-                categoryMenuItem.applicationsBox.remove_actor(actor);
-            }
-            for (let i = 0; i < apps.length; i++) {
-                let app = apps[i];
-                if(listByCharacter && displayAllApps){
-                    if(currentCharacter !== app.get_name().charAt(0).toLowerCase()){
-                        currentCharacter = app.get_name().charAt(0).toLowerCase();
-                        needsNewSeparator = true;
-                    }
-                    else{
-                        needsNewSeparator = false;
-                    }
-                    if(needsNewSeparator){
-                        let characterLabel = new PopupMenu.PopupMenuItem(currentCharacter.toUpperCase(), {
-                            hover: false,
-                            can_focus: false
-                        });  
-                        characterLabel.actor.add_style_pseudo_class = () => { return false;};
-                        characterLabel.actor.add(this._createHorizontalSeparator(Constants.SEPARATOR_STYLE.LONG));
-                        characterLabel.label.style = 'font-weight: bold;';
-                        categoryMenuItem.applicationsBox.add_actor(characterLabel.actor)
-                    }
-                }
-                let item = this.applicationsMap.get(app);
-                if (!item) {
-                    item = new MW.ApplicationMenuItem(this, app);
-                    this.applicationsMap.set(app, item);
-                }
-                if(item.actor.get_parent()){
-                    item.actor.get_parent().remove_actor(item.actor);
-                }
-                if (!item.actor.get_parent()) {
-                    categoryMenuItem.applicationsBox.add_actor(item.actor); 
-                }
-                if(item instanceof MW.CategorySubMenuItem){
-                    if(item.menu.actor.get_parent()){
-                        item.menu.actor.get_parent().remove_actor(item.menu.actor);
-                    }
-                    categoryMenuItem.applicationsBox.add_actor(item.menu.actor);
-                }
-            }
+        if(scrollViewParent && scrollViewParent instanceof St.ScrollView){
+            let scrollBoxAdj = scrollViewParent.get_vscroll_bar().get_adjustment();
+            scrollBoxAdj.set_value(0);
         }
+        let actors = parent.get_children();
+        for (let i = 0; i < actors.length; i++) {
+            let actor = actors[i];
+            if(actor instanceof St.Widget && actor.layout_manager instanceof Clutter.GridLayout){
+                actor.get_children().forEach(gridChild => {
+                    if(gridChild instanceof MW.CategorySubMenuItem)
+                        gridChild.menu.close();
+                });
+            }
+            parent.remove_actor(actor);
+        }
+    }
+
+    displayCategoryAppList(appList, category, categoryMenuItem){
+        this._clearActorsFromBox();
+        this._displayAppList(appList, category, categoryMenuItem);
+    }
+
+    displayRecentFiles(){
+        let categoryMenuItem = this.categoryDirectories.get(Constants.CategoryType.RECENT_FILES);
+        let children = categoryMenuItem.applicationsBox.get_children();
+        for (let i = 0; i < children.length; i++) {
+            let actor = children[i];
+            if(actor._delegate instanceof MW.CategorySubMenuItem)
+                actor._delegate.menu.close();
+            categoryMenuItem.applicationsBox.remove_actor(actor);
+        }
+        super.displayRecentFiles(categoryMenuItem.applicationsBox);
+    }
+
+    _displayAppList(apps, category, categoryMenuItem) {
+        super._displayAppList(apps, category, this.applicationsGrid);
+        if(!categoryMenuItem.applicationsBox.contains(this.applicationsGrid))
+            categoryMenuItem.applicationsBox.add(this.applicationsGrid);
     }
 }

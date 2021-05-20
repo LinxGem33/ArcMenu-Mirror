@@ -1,11 +1,11 @@
 /*
- * Arc Menu - A traditional application menu for GNOME 3
+ * ArcMenu - A traditional application menu for GNOME 3
  *
- * Arc Menu Lead Developer
+ * ArcMenu Lead Developer and Maintainer
  * Andrew Zaech https://gitlab.com/AndrewZaech
  * 
- * Arc Menu Founder/Maintainer/Graphic Designer
- * LinxGem33 https://gitlab.com/LinxGem33
+ * ArcMenu Founder, Former Maintainer, and Former Graphic Designer
+ * LinxGem33 https://gitlab.com/LinxGem33 - (No Longer Active)
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,19 +31,22 @@ const MW = Me.imports.menuWidgets;
 const Utils =  Me.imports.utils;
 const _ = Gettext.gettext;
 
-const COLUMN_SPACING = 10;
-const ROW_SPACING = 10;
-const COLUMN_COUNT = 4;
-
 var createMenu = class extends BaseMenuLayout.BaseLayout{
     constructor(mainButton) {
         super(mainButton, {
             Search: true,
-            SearchType: Constants.SearchType.GRID_VIEW,
+            AppType: Constants.AppDisplayType.GRID,
+            SearchType: Constants.AppDisplayType.GRID,
+            GridColumns: 4,
+            ColumnSpacing: 10,
+            RowSpacing: 10,
+            IconGridSize: 36,
+            IconGridStyle: 'SmallIconGrid',
             VerticalMainBox: true
         });
     }
     createLayout(){
+        super.createLayout();
         this.searchBox = new MW.SearchBox(this);
         this.searchBox._stEntry.style = "min-height: 0px; border-radius: 18px; padding: 7px 12px;";
         this._searchBoxChangedId = this.searchBox.connect('changed', this._onSearchBoxChanged.bind(this));
@@ -67,18 +70,6 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
             vertical: true
         });
 
-        let layout = new Clutter.GridLayout({ 
-            orientation: Clutter.Orientation.VERTICAL,
-            column_spacing: COLUMN_SPACING,
-            row_spacing: ROW_SPACING 
-        });
-        this.grid = new St.Widget({ 
-            x_expand: true,
-            x_align: Clutter.ActorAlign.CENTER,
-            layout_manager: layout 
-        });
-        layout.hookup_style(this.grid);
-
         this.applicationsScrollBox = this._createScrollBox({
             x_expand: true,
             y_expand: true,
@@ -97,32 +88,17 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
             this.mainBox.add(this.searchBox.actor);
         }
         this.loadCategories();
-        this.displayAllApps();
         this.setDefaultMenuView();
     }
 
     setDefaultMenuView(){
         super.setDefaultMenuView();
-        this._displayAppIcons();
+        this.displayAllApps();
     }
 
     loadCategories() {
         this.categoryDirectories = null;
-        this.categoryDirectories = new Map(); 
-
-        let isIconGrid = true;
-        super.loadCategories(MW.CategoryMenuItem, isIconGrid);
-    }
-    
-    _displayAppList(apps) {
-        super._displayAppGridList(apps, COLUMN_COUNT);
-    }
-
-    _displayAppIcons(){
-        this.activeMenuItem = this.grid.layout_manager.get_child_at(0, 0);
-        this.applicationsBox.add(this.grid);
-        if(this.arcMenu.isOpen){
-            this.mainBox.grab_key_focus();
-        }
+        this.categoryDirectories = new Map();
+        super.loadCategories();
     }
 }

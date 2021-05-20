@@ -1,11 +1,11 @@
 /*
- * Arc Menu - A traditional application menu for GNOME 3
+ * ArcMenu - A traditional application menu for GNOME 3
  *
- * Arc Menu Lead Developer
+ * ArcMenu Lead Developer and Maintainer
  * Andrew Zaech https://gitlab.com/AndrewZaech
  * 
- * Arc Menu Founder/Maintainer/Graphic Designer
- * LinxGem33 https://gitlab.com/LinxGem33
+ * ArcMenu Founder, Former Maintainer, and Former Graphic Designer
+ * LinxGem33 https://gitlab.com/LinxGem33 - (No Longer Active)
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,21 +33,24 @@ const PopupMenu = imports.ui.popupMenu;
 const Utils =  Me.imports.utils;
 const _ = Gettext.gettext;
 
-const COLUMN_SPACING = 15;
-const ROW_SPACING = 15;
-const COLUMN_COUNT = 6;
-
 var createMenu = class extends BaseMenuLayout.BaseLayout{
     constructor(mainButton) {
         super(mainButton, {
             Search: true,
-            SearchType: Constants.SearchType.GRID_VIEW,
-            VerticalMainBox: true
+            AppType: Constants.AppDisplayType.GRID,
+            SearchType: Constants.AppDisplayType.GRID,
+            GridColumns: 6,
+            ColumnSpacing: 15,
+            RowSpacing: 15,
+            IconGridSize: 52,
+            IconGridStyle: 'LargeIconGrid',
+            VerticalMainBox: true,
         });
     }
 
     createLayout(){
-        let homeScreen = this._settings.get_boolean('enable-ubuntu-homescreen');
+        super.createLayout();
+        let homeScreen = this._settings.get_boolean('enable-unity-homescreen');
         if(homeScreen)
             this.activeCategory = _("Pinned Apps");
         else
@@ -100,18 +103,6 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
             vertical: true,
             style: "padding-bottom: 10px;"
         });
-
-        let layout = new Clutter.GridLayout({ 
-            orientation: Clutter.Orientation.VERTICAL,
-            column_spacing: COLUMN_SPACING,
-            row_spacing: ROW_SPACING 
-        });
-        this.grid = new St.Widget({ 
-            x_expand: true,
-            x_align: Clutter.ActorAlign.CENTER,
-            layout_manager: layout 
-        });
-        layout.hookup_style(this.grid);
 
         this.applicationsScrollBox = this._createScrollBox({
             x_expand: true,
@@ -167,7 +158,6 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         this._clocksItem = new MW.WorldClocksSection();
         this._clocksItem.style = "border-radius:4px; padding: 10px; margin: 0px";
         this._clocksItem.connect("clicked", ()=> this.arcMenu.close());
-        
 
         this.appShortcuts = [];
         this.shortcutsBox = new St.BoxLayout({
@@ -178,10 +168,10 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
             vertical: true
         });
 
-        layout = new Clutter.GridLayout({ 
+        let layout = new Clutter.GridLayout({ 
             orientation: Clutter.Orientation.VERTICAL,
-            column_spacing: COLUMN_SPACING,
-            row_spacing: ROW_SPACING
+            column_spacing: this.layoutProperties.ColumnSpacing,
+            row_spacing: this.layoutProperties.RowSpacing
         });
         this.shortcutsGrid = new St.Widget({ 
             x_expand: true,
@@ -193,27 +183,26 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         this.shortcutsBox.add(this.shortcutsGrid);
 
         //Add Application Shortcuts to menu (Software, Settings, Tweaks, Terminal)
-        let SOFTWARE_TRANSLATIONS = [_("Software"), _("Settings"), _("Tweaks"), _("Terminal"), _("Activities Overview"), _("Arc Menu Settings")];
+        let SOFTWARE_TRANSLATIONS = [_("Software"), _("Settings"), _("Tweaks"), _("Terminal"), _("Activities Overview"), _("ArcMenu Settings")];
         let applicationShortcuts = this._settings.get_value('application-shortcuts-list').deep_unpack();
         for(let i = 0; i < applicationShortcuts.length; i++){
             let applicationName = applicationShortcuts[i][0];
-            let shortcutMenuItem = new MW.ShortcutMenuItem(this, _(applicationName), applicationShortcuts[i][1], applicationShortcuts[i][2]);
-            shortcutMenuItem.setAsIcon();
+            let shortcutMenuItem = new MW.ShortcutMenuItem(this, _(applicationName), applicationShortcuts[i][1], applicationShortcuts[i][2], Constants.AppDisplayType.GRID);
             this.appShortcuts.push(shortcutMenuItem);
         }
-        this.loadFavorites();
+        this.loadPinnedApps();
         this.loadCategories();
-        this._createFavoritesMenu();
-        this.loadPinnedShortcuts();
+        this._createCategoriesMenu();
+        this.loadExtraPinnedApps();
 
         this.setDefaultMenuView();
     }
 
     _addSeparator(){
-        this.actionsBox.add(this._createVerticalSeparator(Constants.SEPARATOR_STYLE.SHORT));
+        this.actionsBox.add(this._createVerticalSeparator(Constants.SeparatorStyle.SHORT));
     }
 
-    loadPinnedShortcuts(){
+    loadExtraPinnedApps(){
         this.actionsContainerBox.remove_actor(this.actionsBox);
         this.actionsBox.destroy_all_children();
         this.actionsBox = new St.BoxLayout({
@@ -226,10 +215,10 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         this.actionsBox.style = "spacing: 10px;";
         this.actionsContainerBox.add(this.actionsBox);
 
-        super.loadPinnedApps(this._settings.get_strv('ubuntu-dash-pinned-app-list'), this._settings.get_int('ubuntu-dash-separator-index'));
+        super.loadExtraPinnedApps(this._settings.get_strv('unity-pinned-app-list'), this._settings.get_int('unity-separator-index'));
     }
 
-    _updatePinnedApps(){
+    _createExtraPinnedAppsList(){
         let pinnedApps = [];      
         pinnedApps.push(_("Home"), "ArcMenu_Home", "ArcMenu_Home");
         pinnedApps.push(_("Documents"), "ArcMenu_Documents", "ArcMenu_Documents");
@@ -246,18 +235,13 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         pinnedApps.push(_("Lock"), "changes-prevent-symbolic", "ArcMenu_Lock");
         pinnedApps.push(_("Power Off"), "system-shutdown-symbolic", "ArcMenu_PowerOff");
 
-        this.shouldLoadFavorites = false; // We don't want to trigger a setting changed event
-        this._settings.set_strv('ubuntu-dash-pinned-app-list', pinnedApps);
-        this.shouldLoadFavorites = true;
+        this.shouldLoadPinnedApps = false; // We don't want to trigger a setting changed event
+        this._settings.set_strv('unity-pinned-app-list', pinnedApps);
+        this.shouldLoadPinnedApps = true;
         return pinnedApps;  
-    }   
-
-    loadFavorites(){
-        let isIconGrid = true;
-        super.loadFavorites(isIconGrid);
     }
 
-    _createFavoritesMenu(){
+    _createCategoriesMenu(){
         this.categoriesMenu = new PopupMenu.PopupMenu(this.categoriesButton.actor, 0.5, St.Side.TOP);
         this.categoriesMenu.blockSourceEvents = true;
         this.categoriesMenu.connect('open-state-changed', (menu, open) => {
@@ -311,13 +295,13 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         Main.uiGroup.add_actor(this.categoriesMenu.actor);
     }
 
-    toggleFavoritesMenu(){
+    toggleCategoriesMenu(){
         let appsScrollBoxAdj = this.categoriesScrollBox.get_vscroll_bar().get_adjustment();
         appsScrollBoxAdj.set_value(0);
 
-        let addStyle=this._settings.get_boolean('enable-custom-arc-menu');
-        this.categoriesMenu.actor.style_class = addStyle ? 'arc-right-click-boxpointer': 'popup-menu-boxpointer';
-        this.categoriesMenu.actor.add_style_class_name( addStyle ? 'arc-right-click' : 'popup-menu');
+        let customStyle=this._settings.get_boolean('enable-custom-arc-menu');
+        this.categoriesMenu.actor.style_class = customStyle ? 'arc-right-click-boxpointer': 'popup-menu-boxpointer';
+        this.categoriesMenu.actor.add_style_class_name( customStyle ? 'arc-right-click' : 'popup-menu');
         this.categoriesButton.tooltip.hide();
 
         this.categoriesMenu.toggle();
@@ -325,11 +309,11 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
     
     setDefaultMenuView(){
         super.setDefaultMenuView();
-        let homeScreen = this._settings.get_boolean('enable-ubuntu-homescreen');
+        let homeScreen = this._settings.get_boolean('enable-unity-homescreen');
         if(homeScreen){
             this.activeCategory = _("Pinned Apps");
             this.activeCategoryType = Constants.CategoryType.HOME_SCREEN;
-            this.displayFavorites();
+            this.displayPinnedApps();
         }
         else{
             this.activeCategory = _("All Programs");
@@ -350,14 +334,14 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
 
     updateStyle(){
         super.updateStyle();
-        let addStyle=this._settings.get_boolean('enable-custom-arc-menu');
+        let customStyle=this._settings.get_boolean('enable-custom-arc-menu');
         let removeMenuArrow = this._settings.get_boolean('remove-menu-arrow'); 
        
         let actor = this.categoriesButton.actor;
-        addStyle ? actor.add_style_class_name('arc-menu-action') : actor.remove_style_class_name('arc-menu-action');
+        customStyle ? actor.add_style_class_name('arc-menu-action') : actor.remove_style_class_name('arc-menu-action');
 
-        addStyle ? this._clocksItem.add_style_class_name('arc-menu-action') : this._clocksItem.remove_style_class_name('arc-menu-action');
-        addStyle ? this._weatherItem.add_style_class_name('arc-menu-action') : this._weatherItem.remove_style_class_name('arc-menu-action');
+        customStyle ? this._clocksItem.add_style_class_name('arc-menu-action') : this._clocksItem.remove_style_class_name('arc-menu-action');
+        customStyle ? this._weatherItem.add_style_class_name('arc-menu-action') : this._weatherItem.remove_style_class_name('arc-menu-action');
         
         if(removeMenuArrow)
             this.arcMenu.box.style = "padding-bottom:0px; margin:0px;";
@@ -370,6 +354,7 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         this.categoryDirectories = new Map(); 
         let categoryMenuItem = new MW.CategoryMenuItem(this, Constants.CategoryType.HOME_SCREEN);
         this.categoryDirectories.set(Constants.CategoryType.HOME_SCREEN, categoryMenuItem);
+        this.hasPinnedApps = true;
 
         let extraCategories = this._settings.get_value("extra-categories").deep_unpack();
 
@@ -384,11 +369,10 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
             }
         }
 
-        let isIconGrid = true;
-        super.loadCategories(MW.CategoryMenuItem, isIconGrid);
+        super.loadCategories();
         for(let categoryMenuItem of this.categoryDirectories.values()){
             if(categoryMenuItem._arrowIcon)
-                categoryMenuItem.box.remove_actor(categoryMenuItem._arrowIcon);
+                categoryMenuItem.remove_actor(categoryMenuItem._arrowIcon);
         }
     }
    
@@ -398,29 +382,38 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         }
     }
 
-    displayFavorites() {
+    displayPinnedApps() {
         if(this.activeCategoryType === Constants.CategoryType.HOME_SCREEN)
             this._clearActorsFromBox(this.applicationsBox);
         else
             this._clearActorsFromBox();
         this.subMainBox.remove_actor(this.actionsContainerBox);
-        this._displayAppList(this.favoritesArray, true);
-        this._displayAppList(this.appShortcuts, true, this.shortcutsGrid);
+        this.activeCategory = _("Pinned Apps");
+        this._displayAppList(this.pinnedAppsArray, Constants.CategoryType.PINNED_APPS, this.applicationsGrid);
+        this.activeCategory = _("Shortcuts");
+        this._displayAppList(this.appShortcuts, Constants.CategoryType.HOME_SCREEN, this.shortcutsGrid);
         if(!this.applicationsBox.contains(this.shortcutsBox))
             this.applicationsBox.add(this.shortcutsBox);
         this.widgetBox.remove_all_children();
-        if(this._settings.get_boolean('enable-clock-widget-ubuntu'))
+        if(this._settings.get_boolean('enable-clock-widget-unity'))
             this.widgetBox.add(this._clocksItem);
-        if(this._settings.get_boolean('enable-weather-widget-ubuntu'))
+        if(this._settings.get_boolean('enable-weather-widget-unity'))
             this.widgetBox.add(this._weatherItem);
         if(!this.subMainBox.contains(this.widgetBox))
             this.subMainBox.add(this.widgetBox);
         this.subMainBox.add(this.actionsContainerBox);     
     }
 
-    displayCategoryAppList(appList){
+    displayRecentFiles(){
+        super.displayRecentFiles();
+        let label = this._createHeaderLabel(_("Recent Files"));
+        this.applicationsBox.insert_child_at_index(label, 0);
+        this.activeCategoryType = Constants.CategoryType.RECENT_FILES;
+    }
+
+    displayCategoryAppList(appList, category){
         this._clearActorsFromBox();
-        this._displayAppList(appList);
+        this._displayAppList(appList, category, this.applicationsGrid);
     }
 
     _clearActorsFromBox(box) {
@@ -432,31 +425,14 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         super._clearActorsFromBox(box);
     }
 
-    _displayAppList(apps, isFavoriteMenuItem = false, differentGrid = null){      
-        let grid = differentGrid ? differentGrid : this.grid;  
-        grid.remove_all_children();
-        super._displayAppGridList(apps, COLUMN_COUNT, isFavoriteMenuItem, differentGrid);
-        let favsLabel = new PopupMenu.PopupMenuItem(differentGrid ? _("Shortcuts") : _(this.activeCategory), {
-            hover: false,
-            can_focus: false
-        });  
-        favsLabel.actor.add_style_pseudo_class = () => { return false;};
-        favsLabel.actor.add(this._createHorizontalSeparator(Constants.SEPARATOR_STYLE.LONG));
-        favsLabel.label.style = 'font-weight: bold;';
-        differentGrid ? this.applicationsBox.insert_child_at_index(favsLabel.actor, 2) : this.applicationsBox.insert_child_at_index(favsLabel.actor, 0);
-        this._displayAppIcons();
-    }
+    _displayAppList(apps, category, grid){      
+        super._displayAppList(apps, category, grid);
 
-    _displayAppIcons(){
-        let appsScrollBoxAdj = this.categoriesScrollBox.get_vscroll_bar().get_adjustment();
-        appsScrollBoxAdj.set_value(0);
-        appsScrollBoxAdj = this.applicationsScrollBox.get_vscroll_bar().get_adjustment();
-        appsScrollBoxAdj.set_value(0);
-        if(!this.applicationsBox.contains(this.grid))
-            this.applicationsBox.add(this.grid);
-        if(this.arcMenu.isOpen){
-            this.mainBox.grab_key_focus();
-        }
+        let label = this._createHeaderLabel(this.activeCategory);
+        if(grid === this.applicationsGrid)
+            this.applicationsBox.insert_child_at_index(label.actor, 0);
+        else
+            this.applicationsBox.insert_child_at_index(label.actor, 2);
     }
    
     destroy(isReload){

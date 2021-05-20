@@ -1,11 +1,11 @@
 /*
- * Arc Menu - A traditional application menu for GNOME 3
+ * ArcMenu - A traditional application menu for GNOME 3
  *
- * Arc Menu Lead Developer
+ * ArcMenu Lead Developer and Maintainer
  * Andrew Zaech https://gitlab.com/AndrewZaech
  * 
- * Arc Menu Founder/Maintainer/Graphic Designer
- * LinxGem33 https://gitlab.com/LinxGem33
+ * ArcMenu Founder, Former Maintainer, and Former Graphic Designer
+ * LinxGem33 https://gitlab.com/LinxGem33 - (No Longer Active)
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,13 +37,17 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
     constructor(mainButton) {
         super(mainButton, {
             Search: true,
-            SearchType: Constants.SearchType.LIST_VIEW,
+            AppType: Constants.AppDisplayType.LIST,
+            SearchType: Constants.AppDisplayType.LIST,
+            GridColumns: 1,
+            ColumnSpacing: 0,
+            RowSpacing: 0,
+            SupportsCategoryOnHover: true,
             VerticalMainBox: false
         });
     }
     createLayout(){
-        this.actionsBoxStyle = "background-color:rgba(186, 196,201, 0.1); border-color:rgba(186, 196,201, 0.2); border-width: 1px; border-radius: 5px;"
-                                  +"margin: 0px 0px; spacing: 8px; padding: 10px 0px;";
+        super.createLayout();
         //Stores the Pinned Icons on the left side
         this.actionsScrollBox = new St.ScrollView({
             x_expand: false,
@@ -52,20 +56,18 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
             overlay_scrollbars: true,
             style_class: 'small-vfade'
         });   
-        this.actionsScrollBox.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.EXTERNAL);
+        this.actionsScrollBox.set_policy(St.PolicyType.NEVER, St.PolicyType.EXTERNAL);
         this.actionsBox = new St.BoxLayout({ 
             vertical: true
         });
-        this.actionsScrollBox.add_actor( this.actionsBox);
+        this.actionsScrollBox.add_actor(this.actionsBox);
         this.actionsScrollBox.clip_to_allocation = true;
         
-        this.actionsScrollBox.style = "width:62px; margin: 10px 20px 0 20px;";
-        this.actionsBox.style = this.actionsBoxStyle;
-        //check if custom arc menu is enabled
+        this.actionsScrollBox.style = "width: 62px; margin: 10px 20px; background-color:rgba(186, 196,201, 0.1); border-color:rgba(186, 196,201, 0.2); border-width: 1px; border-radius: 5px;";
+        this.actionsBox.style = "margin: 0px; spacing: 10px; padding: 21px 0px;";
+        //check if custom ArcMenu is enabled
         if( this._settings.get_boolean('enable-custom-arc-menu'))
             this.actionsBox.add_style_class_name('arc-menu');
-        
-        this.loadFavorites();   
 
         this.mainBox.add(this.actionsScrollBox);
         this.rightMenuBox= new St.BoxLayout({ 
@@ -145,23 +147,24 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
 
         this.leftBox.add(this.categoriesScrollBox);
         this.categoriesBox = new St.BoxLayout({ vertical: true });
+
         this.categoriesScrollBox.add_actor( this.categoriesBox);  
         this.categoriesScrollBox.clip_to_allocation = true;
         if(this._settings.get_enum('searchbar-default-top-location') === Constants.SearchbarLocation.BOTTOM){
             this.searchBox.actor.style = "margin: 10px 10px 0px 10px; padding-left: 0.4em;padding-right: 0.4em;";
             this.rightMenuBox.add(this.searchBox.actor);
         }
-        this.loadFavorites();
-        this.loadPinnedShortcuts();
+        this.loadPinnedApps();
+        this.loadExtraPinnedApps();
         this.loadCategories();
         this.displayCategories();
         this.setDefaultMenuView(); 
     }
 
     _addSeparator(){
-        this.actionsBox.add(this._createHorizontalSeparator(Constants.SEPARATOR_STYLE.SHORT));
+        this.actionsBox.add(this._createHorizontalSeparator(Constants.SeparatorStyle.SHORT));
     }    
-   
+
     setDefaultMenuView(){
         super.setDefaultMenuView();
         this.categoryDirectories.values().next().value.displayAppList();
@@ -194,13 +197,12 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         super.loadCategories();
     }
 
-    loadPinnedShortcuts(){
+    loadExtraPinnedApps(){
         this.actionsBox.destroy_all_children();
-
-        super.loadPinnedApps(this._settings.get_strv('mint-pinned-app-list'), this._settings.get_int('mint-separator-index'));
+        super.loadExtraPinnedApps(this._settings.get_strv('mint-pinned-app-list'), this._settings.get_int('mint-separator-index'));
     }
 
-    _updatePinnedApps(){
+    _createExtraPinnedAppsList(){
         let pinnedApps = [];
         //Find the Default Web Browser, if found add to pinned apps list, if not found delete the placeholder.
         //Will only run if placeholder is found. Placeholder only found with default settings set.  
@@ -232,9 +234,9 @@ var createMenu = class extends BaseMenuLayout.BaseLayout{
         pinnedApps.push(_("Lock"), "changes-prevent-symbolic", "ArcMenu_Lock");
         pinnedApps.push(_("Power Off"), "system-shutdown-symbolic", "ArcMenu_PowerOff");
 
-        this.shouldLoadFavorites = false; // We don't want to trigger a setting changed event
+        this.shouldLoadPinnedApps = false; // We don't want to trigger a setting changed event
         this._settings.set_strv('mint-pinned-app-list', pinnedApps);
-        this.shouldLoadFavorites = true;
+        this.shouldLoadPinnedApps = true;
         return pinnedApps;  
     }   
 
