@@ -1,0 +1,11 @@
+{
+"extension-id": "arcmenu",
+"uuid": "arcmenu@arcmenu.com",
+"settings-schema": "org.gnome.shell.extensions.arcmenu",
+"gettext-domain": "arcmenu",
+"name": "ArcMenu",
+"description": "An Application Menu for GNOME",
+"version": 10.5,
+"shell-version": [ "40" ],
+"url": "https://gitlab.com/arcmenu/ArcMenu"
+}
